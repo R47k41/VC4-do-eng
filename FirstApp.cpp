@@ -1,11 +1,12 @@
 ﻿#include <iostream>
 #include <fstream>
 #include <string>
+#include <sstream>
 #include <cctype>
 #include <stdexcept>
 #include <Windows.h>
 #include <vector>
-#include <set>
+#include <map>
 #include <math.h>
 #include <algorithm>
 #include <iterator>
@@ -15,6 +16,7 @@
 namespace fs = boost::filesystem;
 
 using std::string;
+using std::multimap;
 using std::exception;
 using std::cout;
 using std::cerr;
@@ -38,9 +40,11 @@ using std::ios_base;
 //Стурктура файла
 typedef std::pair<std::string, std::string> TFileRec;
 //Массив имен файлов
-typedef std::set<TFileRec> TFileArr;
-//массив путей
-using TPathArr = std::set<fs::path>;
+typedef std::multimap<std::string, std::string> TFileArr;
+//итератор для списка файлов
+typedef TFileArr::const_iterator TFileArrIterator;
+//диапазон
+typedef std::pair<TFileArrIterator, TFileArrIterator> TFilesArrRange;
 
 //установка локали
 inline void SetRusLang(int cp) { SetConsoleCP(cp); SetConsoleOutputCP(cp); };
@@ -72,6 +76,7 @@ TFileArr getFilesArraybyPath(const fs::path& p);
 //3. Для каждого файла из источника ищем его в приемнике + запись в логе
 //сравнение имен файлов:
 bool compare_files_names(const string& file1, const string& file2, int(*fnc)(int) = std::tolower) noexcept(true);
+bool compare_files(const TFileRec& a, const TFileRec& b) noexcept(true);
 //поиск файла в папке источнике
 fs::path getFileInSrc(const string& fname, const fs::path& dir) noexcept(false);
 //копирование для одного файла
@@ -89,17 +94,19 @@ int main(void)
 	try
 	{
 		//получение директории файлов приемника
-		path SrcDir = GetUsrPath("Укажите путь к источнику: ");
-		//path SrcDir("E:\\Rus_Make\\Dead rising\\Dead Rising 2\\test\\PC.RU\\");
+		//path SrcDir = GetUsrPath("Укажите путь к источнику: ");
+		path SrcDir("J:\\Temp\\RUS_make\\VC4\\PC\\original");
 		if (SrcDir.filename().empty()) return 0;
-		path DestDir = GetUsrPath("Укажите путь к приемнику: ");
-		//path DestDir("E:\\Rus_Make\\Dead rising\\Dead Rising Off Record\\test\\pc_rus");
+		//path DestDir = GetUsrPath("Укажите путь к приемнику: ");
+		path DestDir("J:\\Temp\\RUS_make\\VC4\\PS4\\Source");
 		if (DestDir.filename().empty()) return 0;
 		TFileArr DestFiles;
 		DestFiles = getFilesArraybyPath(DestDir);
-		for (auto a : DestFiles)
-			cout << a.second << " в папке: " << a.first << endl;
+		//for (auto a : DestFiles)
+			//cout << a.first << " в папке: " << a.second << endl;
+		cout << "Начинаем процедуру копировани..." << endl;
 		CopyFiles(DestFiles, SrcDir);
+		cout << "Процедура копирования завершена." << endl;
 	}
 	catch (string err)
 	{
@@ -180,13 +187,14 @@ TFileArr getFilesArraybyPath(const fs::path& p) noexcept(false)
 		{
 			TFileArr tmpArr;
 			tmpArr = getFilesArraybyPath(dir.path());
+			cout << "Получаем список файлов для директории: " << dir.path() << endl;
 			std::copy(tmpArr.begin(), tmpArr.end(), std::inserter(result, result.end()));
 		}
 		else
 		{
 			TFileRec tmpFile;
-			tmpFile.first = dir.path().parent_path().string();
-			tmpFile.second = dir.path().filename().string();
+			tmpFile.first = dir.path().filename().string();
+			tmpFile.second = dir.path().parent_path().string();
 			result.insert(tmpFile);
 		}
 	}
@@ -219,13 +227,29 @@ bool compare_files_names(const string& file1, const string& file2, int(*fnc)(int
 {
 	return set_chr_case(file1, fnc) == set_chr_case(file2, fnc) ? true : false;
 }
+
+bool compare_files(const TFileRec& a, const TFileRec& b) noexcept(true)
+{
+	return a.first < b.first;
+}
+
 //поиск файла в папке источнике
 fs::path getFileInSrc(const string& fname, const fs::path& dir) noexcept(false)
 {
+	cout << "Поиск файла: " << fname << " в директории: " << dir.string() << endl;
 	for (directory_entry f : directory_iterator(dir))
 	{
+		cout << "Поиск в " << f.path().string() << endl;
 		if (is_directory(f))
-			return getFileInSrc(fname, f.path());
+		{
+			
+			fs::path p = getFileInSrc(fname, f.path());
+			//если файл найден - выходим
+			if (!p.empty()) 
+				return p;
+			else
+				continue;
+		}
 		else
 			//проверяем совпадение имен:
 			if (compare_files_names(f.path().filename().string(), fname))
@@ -238,6 +262,12 @@ fs::path getFileInSrc(const string& fname, const fs::path& dir) noexcept(false)
 void Copy4File(const path& pfile, const fs::path& src_dir, ostream& log) noexcept(false)
 {
 	using std::abs;
+	if (is_directory(pfile))
+	{
+		log << "Для поиска указана директория: " << pfile.string() << endl;
+		cout << "Для поиска указана директория: " << pfile.string() << endl;
+		return;
+	}
 	fs::path p = getFileInSrc(pfile.filename().string(), src_dir);
 	//если файл не найден:
 	if (p.empty())
@@ -252,14 +282,16 @@ void Copy4File(const path& pfile, const fs::path& src_dir, ostream& log) noexcep
 			log << "***WARNING***\t";
 		log << "Файл: " << pfile.filename().string() << "(" << file_size(pfile);
 		log << "/" << file_size(p) << ") заменен файлом из каталога: " << p.parent_path().string();
+		/*
 		try
 		{
-			//fs::copy_file(p, pfile, fs::copy_option::overwrite_if_exists);
+			fs::copy_file(p, pfile, fs::copy_option::overwrite_if_exists);
 		}
 		catch (fs::filesystem_error err)
 		{
 			log << err.what() << endl;
 		}
+		/**/
 	}
 	log << endl;
 }
@@ -289,6 +321,9 @@ bool checkDir(const fs::path& p, string& err_msg) noexcept(true)
 //копирование массива файлов
 void CopyFiles(const TFileArr& arr, const fs::path& src) noexcept(true)
 {
+	using std::sort;
+	using std::stringstream;
+
 	//если массив файлов пуст - выходим
 	if (arr.empty())
 	{
@@ -305,11 +340,53 @@ void CopyFiles(const TFileArr& arr, const fs::path& src) noexcept(true)
 	//формируем файл логов:
 	ofstream flog;
 	flog.open(".\\logfile.log", ios_base::out | ios_base::trunc);
+	//получаем список файлов источника:
+	cout << "Формируем список файлов источника: " << src.string() << endl;
+	TFileArr SrcFiles = getFilesArraybyPath(src);
+	cout << "Сортируем список файлов источника" << endl;
+	//формируем отсортированный список файлов
+	//sort(SrcFiles.begin(), SrcFiles.end(), compare_files);
+	stringstream msg;
 	//проходим по списку файлов
+	long cnt = 0;
+	long all_cnt = arr.size();
 	for (auto a : arr)
 	{
-		fs::path p(a.first + "\\" + a.second);
-		Copy4File(p, src, flog);
+		msg.clear();
+		//cout << "Поиск файла: " << a.first << endl;
+		if (SrcFiles.count(a.first) > 1)
+		{
+			msg << "****************************************" << endl;
+			msg << "Для файла " << a.first << " найдено несколько совпадений!!!" << endl;
+			msg << "****************************************" << endl;
+			cout << msg.str();
+			flog << msg.str();
+			continue;
+		}
+		TFileArr::const_iterator itr;
+		itr = SrcFiles.find(a.first);
+		if (itr == SrcFiles.end())
+		{
+			msg << "Файл " << a.second << "\\" << a.first << " не найден!"<< endl;
+			cout << msg.str();
+			flog << msg.str();
+			continue;
+		}
+		else
+		{
+			//auto path4pair = [](const TFileRec& val)->string {string rslt; rslt = val.second.empty() ? val.first : val.second + '\\' + val.first; return rslt; };
+			fs::path fold(a.second + '\\' + a.first);
+			fs::path fnew(itr->second + '\\' + itr->first);
+			uintmax_t old_sz = file_size(fold);
+			uintmax_t new_sz = file_size(fnew);
+			int percent_sz = (old_sz == 0 ? 100 : (old_sz - new_sz) / old_sz);
+			if (std::abs(percent_sz) > 35)
+				msg << "***WARNING***\t";
+			msg << "Файл: " << fold.filename().string() << "(" << old_sz;
+			msg << "/" << new_sz << ") заменен файлом из каталога: " << fnew.filename().string();
+			flog << msg.str();
+		}
+		cout << "Обработано " << cnt++ << " файлов из " << all_cnt << endl;
 	}
 	flog.close();
 }
