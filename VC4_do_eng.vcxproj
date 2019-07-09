@@ -158,7 +158,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="D:\Documents\Visual Studio 2019\source\repos\BoostInatll_prj\VC4_do_eng.cpp" />
+    <ClCompile Include="J:\Programming\GitHub\Repository\VC4-do-eng\VC4_do_eng.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

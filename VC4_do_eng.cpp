@@ -40,11 +40,17 @@ using std::ios_base;
 //Стурктура файла
 typedef std::pair<std::string, std::string> TFileRec;
 //Массив имен файлов
-typedef std::multimap<std::string, std::string> TFileArr;
+typedef std::multimap<std::string, std::string, std::less<string> > TFileArr;
 //итератор для списка файлов
 typedef TFileArr::const_iterator TFileArrIterator;
 //диапазон
 typedef std::pair<TFileArrIterator, TFileArrIterator> TFilesArrRange;
+
+template <class T = string>
+struct less
+{
+	bool operator()(const T& a, const T& b) const;
+};
 
 //установка локали
 inline void SetRusLang(int cp) { SetConsoleCP(cp); SetConsoleOutputCP(cp); };
@@ -76,7 +82,6 @@ TFileArr getFilesArraybyPath(const fs::path& p);
 //3. Для каждого файла из источника ищем его в приемнике + запись в логе
 //сравнение имен файлов:
 bool compare_files_names(const string& file1, const string& file2, int(*fnc)(int) = std::tolower) noexcept(true);
-bool compare_files(const TFileRec& a, const TFileRec& b) noexcept(true);
 //поиск файла в папке источнике
 fs::path getFileInSrc(const string& fname, const fs::path& dir) noexcept(false);
 //копирование для одного файла
@@ -91,6 +96,9 @@ void ShowTree(const fs::path& fpath) noexcept(false);
 int main(void)
 {
 	SetRusLang(1251);
+	less<string> l;
+	cout << l("Hello", "hello") << endl;
+	return 0;
 	try
 	{
 		//получение директории файлов приемника
@@ -146,6 +154,14 @@ string set_chr_case(const string& str, int(*fnc)(int))
 	return result;
 }
 
+template <>
+bool less<std::string>::operator()(const std::string& a, const std::string& b) const
+{
+	string f1 = set_chr_case(a, std::tolower);
+	string f2 = set_chr_case(b, std::tolower);
+	return f1 < f2;
+}
+
 //Функция получения пути до файлов от пользователя
 path GetUsrPath(const string& msg) noexcept(false)
 {
@@ -170,6 +186,7 @@ path GetUsrPath(const string& msg) noexcept(false)
 //функция заполнения списка файлами из директории
 TFileArr getFilesArraybyPath(const fs::path& p) noexcept(false)
 {
+	//using std::vector;
 	TFileArr result;
 	if (p.filename().empty())
 		throw ("Указан пустой путь!");
@@ -180,6 +197,7 @@ TFileArr getFilesArraybyPath(const fs::path& p) noexcept(false)
 		throw msg;
 	}
 	//выполняем проход по всем файлам директории
+	//vector<TFileRec> FilesLst;
 	for (directory_entry dir : directory_iterator(p))
 	{
 		//если это директория
@@ -188,7 +206,7 @@ TFileArr getFilesArraybyPath(const fs::path& p) noexcept(false)
 			TFileArr tmpArr;
 			tmpArr = getFilesArraybyPath(dir.path());
 			cout << "Получаем список файлов для директории: " << dir.path() << endl;
-			std::copy(tmpArr.begin(), tmpArr.end(), std::inserter(result, result.end()));
+			result.insert(tmpArr.begin(), tmpArr.end());
 		}
 		else
 		{
@@ -225,12 +243,7 @@ void ShowTree(const fs::path& fpath) noexcept(false)
 //сравнение имен файлов
 bool compare_files_names(const string& file1, const string& file2, int(*fnc)(int)) noexcept(true)
 {
-	return set_chr_case(file1, fnc) == set_chr_case(file2, fnc) ? true : false;
-}
-
-bool compare_files(const TFileRec& a, const TFileRec& b) noexcept(true)
-{
-	return a.first < b.first;
+	return set_chr_case(file1, fnc) < set_chr_case(file2, fnc) ? true : false;
 }
 
 //поиск файла в папке источнике
@@ -344,8 +357,6 @@ void CopyFiles(const TFileArr& arr, const fs::path& src) noexcept(true)
 	cout << "Формируем список файлов источника: " << src.string() << endl;
 	TFileArr SrcFiles = getFilesArraybyPath(src);
 	cout << "Сортируем список файлов источника" << endl;
-	//формируем отсортированный список файлов
-	//sort(SrcFiles.begin(), SrcFiles.end(), compare_files);
 	stringstream msg;
 	//проходим по списку файлов
 	long cnt = 0;
@@ -358,13 +369,16 @@ void CopyFiles(const TFileArr& arr, const fs::path& src) noexcept(true)
 		{
 			msg << "****************************************" << endl;
 			msg << "Для файла " << a.first << " найдено несколько совпадений!!!" << endl;
+			TFilesArrRange range = SrcFiles.equal_range(a.first);
+			int tmp = 0;
+			for (TFileArrIterator x = range.first; x != range.second; x++)
+				msg << ++tmp << ": " << x->second << "\\" << x->first << endl;
 			msg << "****************************************" << endl;
 			cout << msg.str();
 			flog << msg.str();
 			continue;
 		}
-		TFileArr::const_iterator itr;
-		itr = SrcFiles.find(a.first);
+		TFileArr::const_iterator itr = SrcFiles.find(a.first);
 		if (itr == SrcFiles.end())
 		{
 			msg << "Файл " << a.second << "\\" << a.first << " не найден!"<< endl;
@@ -374,7 +388,6 @@ void CopyFiles(const TFileArr& arr, const fs::path& src) noexcept(true)
 		}
 		else
 		{
-			//auto path4pair = [](const TFileRec& val)->string {string rslt; rslt = val.second.empty() ? val.first : val.second + '\\' + val.first; return rslt; };
 			fs::path fold(a.second + '\\' + a.first);
 			fs::path fnew(itr->second + '\\' + itr->first);
 			uintmax_t old_sz = file_size(fold);
