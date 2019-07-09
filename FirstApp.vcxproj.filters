@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="FirstApp.cpp">
+    <ClCompile Include="D:\Documents\Visual Studio 2019\source\repos\BoostInatll_prj\VC4_do_eng.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
   </ItemGroup>
