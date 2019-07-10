@@ -30,7 +30,7 @@ const int PRCNT_STEP = 20;
 //Стурктура файла
 typedef std::pair<std::string, std::string> TFileRec;
 //Массив имен файлов
-typedef std::multimap<std::string, std::string, std::less<string> > TFileArr;
+typedef std::multimap<std::string, std::string, StrCmp<string>> TFileArr;
 //итератор для списка файлов
 typedef TFileArr::const_iterator TFileArrIterator;
 //диапазон
@@ -54,7 +54,7 @@ TFileArr getFilesArraybyPath(const fs::path& p);
 
 //3. Для каждого файла из источника ищем его в приемнике + запись в логе
 //поиск файла в папке источнике
-const TFileArrIterator& find_file(const TFileArrIterator::value_type& f_dst, const TFileArr& dir, TLogger& log) noexcept(true);
+const TFileArrIterator find_file(const TFileArrIterator::value_type& f_dst, const TFileArr& dir, TLogger& log) noexcept(true);
 //копирование для одного файла
 void copy4file(const TFileArrIterator::value_type& f_dst, const TFileArrIterator& f_src, TLogger& log) noexcept(true);
 //выполнение проверок для указанной директории:
@@ -71,10 +71,12 @@ int main(void)
 	{
 		//получение директории файлов приемника
 		//path SrcDir = GetUsrPath("Укажите путь к источнику: ");
-		path SrcDir("J:\\Temp\\RUS_make\\VC4\\PC\\original");
+		//path SrcDir("J:\\Temp\\RUS_make\\VC4\\PC\\original");
+		path SrcDir("E:\\Rus_Make\\Dead rising\\Dead Rising Off Record\\pc_rus");
 		if (SrcDir.filename().empty()) return 0;
 		//path DestDir = GetUsrPath("Укажите путь к приемнику: ");
-		path DestDir("J:\\Temp\\RUS_make\\VC4\\PS4\\Source");
+		//path DestDir("J:\\Temp\\RUS_make\\VC4\\PS4\\Source");
+		path DestDir("E:\\Rus_Make\\Dead rising\\Dead Rising 2\\PC.RU");
 		if (DestDir.filename().empty()) return 0;
 		TFileArr DestFiles;
 		DestFiles = getFilesArraybyPath(DestDir);
@@ -188,7 +190,7 @@ void ShowTree(const fs::path& fpath) noexcept(false)
 }
 
 //поиск файла в папке источнике
-const TFileArrIterator& find_file(const TFileArrIterator::value_type& f_dst, const TFileArr& dir, TLogger& log) noexcept(true)
+const TFileArrIterator find_file(const TFileArrIterator::value_type& f_dst, const TFileArr& dir, TLogger& log) noexcept(true)
 {
 	using std::stringstream;
 	
@@ -207,7 +209,7 @@ const TFileArrIterator& find_file(const TFileArrIterator::value_type& f_dst, con
 		log.Add2Many_log(msg.str());
 		return dir.end();
 	}
-	TFileArrIterator itr = dir.find(f_dst.first);
+	const TFileArrIterator itr = dir.find(f_dst.first);
 	if (itr == dir.end())
 	{
 		msg << "Файл " << f_dst.second << "\\" << f_dst.first << " не найден!" << endl;
@@ -225,10 +227,16 @@ void copy4file(const TFileArrIterator::value_type& f_dst, const TFileArrIterator
 {
 	using std::stringstream;
 	stringstream msg;
+	auto getName = [](const string& dir, const string& name)-> string {
+		string pth = dir;  
+		pth += '\\';
+		pth += name;
+		return pth;
+	};
 	//формируем файл который бедем заменять		
-	fs::path old_file(f_dst.second + '\\' + f_dst.first);
+	fs::path old_file(getName(f_dst.second, f_dst.first));
 	//формируем файл на который будем заменять
-	fs::path new_file(f_src->second + '\\' + f_src->first);
+	fs::path new_file(getName(f_src->second, f_src->first));
 	uintmax_t old_sz = file_size(old_file);
 	uintmax_t new_sz = file_size(new_file);
 	int percent_sz = (old_sz == 0 ? 100 : (old_sz - new_sz) / old_sz);
@@ -238,7 +246,8 @@ void copy4file(const TFileArrIterator::value_type& f_dst, const TFileArrIterator
 	msg << "/" << new_sz << ") заменен файлом из каталога: " << new_file.filename().string();
 	try
 	{
-		fs::copy_file(new_file, old_file, fs::copy_option::overwrite_if_exists);
+		//fs::copy_file(new_file, old_file, fs::copy_option::overwrite_if_exists);
+		;
 	}
 	catch (fs::filesystem_error err)
 	{
@@ -299,8 +308,9 @@ void CopyFiles(const TFileArr& arr, const fs::path& src) noexcept(true)
 	long all_cnt = arr.size();
 	for (auto a : arr)
 	{
-		const TFileArrIterator& itr = find_file(a, SrcFiles, log);
-		if (itr != SrcFiles.end()) copy4file(a, itr, log);
+		const TFileArrIterator itr = find_file(a, SrcFiles, log);
+		if (itr != SrcFiles.end())
+			copy4file(a, itr, log);
 		cout << "Обработано " << cnt++ << " файлов из " << all_cnt << endl;
 	}
 }
