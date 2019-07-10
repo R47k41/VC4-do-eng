@@ -54,9 +54,9 @@ TFileArr getFilesArraybyPath(const fs::path& p);
 
 //3. Для каждого файла из источника ищем его в приемнике + запись в логе
 //поиск файла в папке источнике
-TFileArrIterator& find_file(const TFileArrIterator::value_type& f_dst, const TFileArr& dir, TLogger& log) noexcept(true);
+const TFileArrIterator& find_file(const TFileArrIterator::value_type& f_dst, const TFileArr& dir, TLogger& log) noexcept(true);
 //копирование для одного файла
-void copy4file(const TFileArrIterator::value_type& f_dst, const TFileArrIterator& f_src, , TLogger& log) noexcept(true);
+void copy4file(const TFileArrIterator::value_type& f_dst, const TFileArrIterator& f_src, TLogger& log) noexcept(true);
 //выполнение проверок для указанной директории:
 bool checkDir(const fs::path& p, string& err_msg) noexcept(true);
 //копирование массива файлов
@@ -299,7 +299,8 @@ void CopyFiles(const TFileArr& arr, const fs::path& src) noexcept(true)
 	long all_cnt = arr.size();
 	for (auto a : arr)
 	{
-
+		const TFileArrIterator& itr = find_file(a, SrcFiles, log);
+		if (itr != SrcFiles.end()) copy4file(a, itr, log);
 		cout << "Обработано " << cnt++ << " файлов из " << all_cnt << endl;
 	}
 }

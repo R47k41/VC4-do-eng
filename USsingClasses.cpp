@@ -36,7 +36,7 @@ bool TLogger::CreateLogFile(const string& fname, ofstream& log) noexcept(false)
 	if (!log.is_open())
 		cout << "Ошибка создания файла лога: " << fname << endl;
 	cout << "Файл лога " << fname << " успешно создан" << endl;
-	return true
+	return true;
 }
 
 void TLogger::Add2Log(ofstream& log, const string& msg)
@@ -49,11 +49,11 @@ void TLogger::Add2Log(ofstream& log, const string& msg)
 	log << msg;
 }
 
-TLogger::TLogger(const string& rpl = repl_name, const string& no_fnd = no_fnd_name, const string& m2o = many2one_name)
+TLogger::TLogger(const string& rpl, const string& no_fnd, const string& m2o)
 {
-	CreateLogFile(rpl);
-	CreateLogFile(no_fnd);
-	CreateLogFile(m2o);
+	CreateLogFile(rpl, rpl_log);
+	CreateLogFile(no_fnd, no_fnd_log);
+	CreateLogFile(m2o, many2one_log);
 }
 
 TLogger::~TLogger()
