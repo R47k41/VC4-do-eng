@@ -1,30 +1,19 @@
-﻿#include <iostream>
-#include <fstream>
-#include <string>
-#include <sstream>
+﻿#include <sstream>
 #include <cctype>
 #include <stdexcept>
 #include <Windows.h>
 #include <vector>
 #include <map>
 #include <math.h>
-#include <algorithm>
-#include <iterator>
-#include <utility>
 #include <boost/filesystem.hpp>
+#include "UsingClasses.h"
 //#include <boost/algorithm/string.hpp>
 namespace fs = boost::filesystem;
 
-using std::string;
 using std::multimap;
 using std::exception;
 using std::cout;
-using std::cerr;
-using std::endl;
-using std::ofstream;
 using std::ostream;
-using std::inserter;
-using std::ostream_iterator;
 using std::replace;
 using fs::file_size;
 using fs::exists;
@@ -33,7 +22,8 @@ using fs::path;
 using fs::directory_iterator;
 using fs::directory_entry;
 using fs::filesystem_error;
-using std::ios_base;
+
+const int PRCNT_STEP = 20;
 
 //Определения типов:
 //функция принимающая символ
@@ -46,12 +36,6 @@ typedef TFileArr::const_iterator TFileArrIterator;
 //диапазон
 typedef std::pair<TFileArrIterator, TFileArrIterator> TFilesArrRange;
 
-template <class T = string>
-struct less
-{
-	bool operator()(const T& a, const T& b) const;
-};
-
 //установка локали
 inline void SetRusLang(int cp) { SetConsoleCP(cp); SetConsoleOutputCP(cp); };
 
@@ -61,8 +45,6 @@ inline void SetRusLang(int cp) { SetConsoleCP(cp); SetConsoleOutputCP(cp); };
 //**** Основная суть программы заменить файлы в японской версии на
 //файлы английской версии
 
-//функция преобразования строки в нижний регистр
-string set_chr_case(const string& str, int(*)(int));
 
 //1. устанавливаем путь к источнику и путь к приемнику - это должны быть папки
 fs::path GetUsrPath(const string& msg) noexcept(false);
@@ -70,22 +52,11 @@ fs::path GetUsrPath(const string& msg) noexcept(false);
 //2. получение списка файлов в приемнике: путь + имя
 TFileArr getFilesArraybyPath(const fs::path& p);
 
-//функция получения пути для файла
-
-//2.1 создаем файлы лога для копирования файлов:
-//для каждой папки из приемника - свой файл лога по имени папки
-//заносим туда информацию о замененных файлах:
-//	имя + размер файла в источнике + размер в приемнике + путь до файла в приемнике
-
-//2.2 создаем файл лога для файлов которые не найдены в источнике
-
 //3. Для каждого файла из источника ищем его в приемнике + запись в логе
-//сравнение имен файлов:
-bool compare_files_names(const string& file1, const string& file2, int(*fnc)(int) = std::tolower) noexcept(true);
 //поиск файла в папке источнике
-fs::path getFileInSrc(const string& fname, const fs::path& dir) noexcept(false);
+TFileArrIterator& find_file(const TFileArrIterator::value_type& f_dst, const TFileArr& dir, TLogger& log) noexcept(true);
 //копирование для одного файла
-void Copy4File(const path& pfile, const fs::path& src_dir, ostream& log) noexcept(false);
+void copy4file(const TFileArrIterator::value_type& f_dst, const TFileArrIterator& f_src, , TLogger& log) noexcept(true);
 //выполнение проверок для указанной директории:
 bool checkDir(const fs::path& p, string& err_msg) noexcept(true);
 //копирование массива файлов
@@ -96,9 +67,6 @@ void ShowTree(const fs::path& fpath) noexcept(false);
 int main(void)
 {
 	SetRusLang(1251);
-	less<string> l;
-	cout << l("Hello", "hello") << endl;
-	return 0;
 	try
 	{
 		//получение директории файлов приемника
@@ -139,28 +107,6 @@ int main(void)
 	return 0;
 }
 
-//функция установки регистра для строки:
-string set_chr_case(const string& str, int(*fnc)(int))
-{
-	using std::transform;
-	if (str.empty()) return string{};
-	if (fnc != tolower and fnc != toupper)
-	{
-		cerr << "Не верное применение функции" << endl;
-		return string{};
-	}
-	string result;
-	transform(str.begin(), str.end(), inserter(result, result.begin()), fnc);
-	return result;
-}
-
-template <>
-bool less<std::string>::operator()(const std::string& a, const std::string& b) const
-{
-	string f1 = set_chr_case(a, std::tolower);
-	string f2 = set_chr_case(b, std::tolower);
-	return f1 < f2;
-}
 
 //Функция получения пути до файлов от пользователя
 path GetUsrPath(const string& msg) noexcept(false)
@@ -218,7 +164,7 @@ TFileArr getFilesArraybyPath(const fs::path& p) noexcept(false)
 	}
 
 	return result;
-};
+}
 
 void ShowTree(const fs::path& fpath) noexcept(false)
 {
@@ -239,74 +185,66 @@ void ShowTree(const fs::path& fpath) noexcept(false)
 	}
 	else
 		throw ("Ошбка в указанном пути: " + fpath.string());
-};
-//сравнение имен файлов
-bool compare_files_names(const string& file1, const string& file2, int(*fnc)(int)) noexcept(true)
-{
-	return set_chr_case(file1, fnc) < set_chr_case(file2, fnc) ? true : false;
 }
 
 //поиск файла в папке источнике
-fs::path getFileInSrc(const string& fname, const fs::path& dir) noexcept(false)
+const TFileArrIterator& find_file(const TFileArrIterator::value_type& f_dst, const TFileArr& dir, TLogger& log) noexcept(true)
 {
-	cout << "Поиск файла: " << fname << " в директории: " << dir.string() << endl;
-	for (directory_entry f : directory_iterator(dir))
+	using std::stringstream;
+	
+	stringstream msg;
+	//cout << "Поиск файла: " << a.first << endl;
+	if (dir.count(f_dst.first) > 1)
 	{
-		cout << "Поиск в " << f.path().string() << endl;
-		if (is_directory(f))
-		{
-			
-			fs::path p = getFileInSrc(fname, f.path());
-			//если файл найден - выходим
-			if (!p.empty()) 
-				return p;
-			else
-				continue;
-		}
-		else
-			//проверяем совпадение имен:
-			if (compare_files_names(f.path().filename().string(), fname))
-				return f.path();
+		msg << "****************************************" << endl;
+		msg << "Для файла " << f_dst.first << " найдено несколько совпадений:" << endl;
+		TFilesArrRange range = dir.equal_range(f_dst.first);
+		int tmp = 0;
+		for (TFileArrIterator x = range.first; x != range.second; x++)
+			msg << ++tmp << ": " << x->second << "\\" << x->first << endl;
+		msg << "****************************************" << endl;
+		cout << msg.str();
+		log.Add2Many_log(msg.str());
+		return dir.end();
 	}
-	return fs::path{};
+	TFileArrIterator itr = dir.find(f_dst.first);
+	if (itr == dir.end())
+	{
+		msg << "Файл " << f_dst.second << "\\" << f_dst.first << " не найден!" << endl;
+		cout << msg.str();
+		log.Add2NoFnd_log(msg.str());
+		return dir.end();
+	}
+	else
+		return itr;
+	return dir.end();
 }
 
 //копирование для одного файла
-void Copy4File(const path& pfile, const fs::path& src_dir, ostream& log) noexcept(false)
+void copy4file(const TFileArrIterator::value_type& f_dst, const TFileArrIterator& f_src, TLogger& log) noexcept(true)
 {
-	using std::abs;
-	if (is_directory(pfile))
+	using std::stringstream;
+	stringstream msg;
+	//формируем файл который бедем заменять		
+	fs::path old_file(f_dst.second + '\\' + f_dst.first);
+	//формируем файл на который будем заменять
+	fs::path new_file(f_src->second + '\\' + f_src->first);
+	uintmax_t old_sz = file_size(old_file);
+	uintmax_t new_sz = file_size(new_file);
+	int percent_sz = (old_sz == 0 ? 100 : (old_sz - new_sz) / old_sz);
+	if (std::abs(percent_sz) > PRCNT_STEP)
+		msg << "***WARNING***\t";
+	msg << "Файл: " << old_file.filename().string() << "(" << old_sz;
+	msg << "/" << new_sz << ") заменен файлом из каталога: " << new_file.filename().string();
+	try
 	{
-		log << "Для поиска указана директория: " << pfile.string() << endl;
-		cout << "Для поиска указана директория: " << pfile.string() << endl;
-		return;
+		fs::copy_file(new_file, old_file, fs::copy_option::overwrite_if_exists);
 	}
-	fs::path p = getFileInSrc(pfile.filename().string(), src_dir);
-	//если файл не найден:
-	if (p.empty())
-		log << "Файл " << pfile.filename().string() << " не найден в каталоге: " << src_dir.string();
-	else
+	catch (fs::filesystem_error err)
 	{
-		//копирование файла в папку назначения:
-		uintmax_t old_sz = file_size(pfile);
-		uintmax_t new_sz = file_size(p);
-		int percent_sz = (old_sz - new_sz) / old_sz;
-		if (std::abs(percent_sz) > 35)
-			log << "***WARNING***\t";
-		log << "Файл: " << pfile.filename().string() << "(" << file_size(pfile);
-		log << "/" << file_size(p) << ") заменен файлом из каталога: " << p.parent_path().string();
-		/*
-		try
-		{
-			fs::copy_file(p, pfile, fs::copy_option::overwrite_if_exists);
-		}
-		catch (fs::filesystem_error err)
-		{
-			log << err.what() << endl;
-		}
-		/**/
+		log.Add2Rpl_log(err.what());
 	}
-	log << endl;
+	log.Add2Rpl_log(msg.str());
 }
 
 //выполнение проверок для указанной директории:
@@ -351,55 +289,17 @@ void CopyFiles(const TFileArr& arr, const fs::path& src) noexcept(true)
 		return;
 	}
 	//формируем файл логов:
-	ofstream flog;
-	flog.open(".\\logfile.log", ios_base::out | ios_base::trunc);
+	TLogger log;
 	//получаем список файлов источника:
 	cout << "Формируем список файлов источника: " << src.string() << endl;
 	TFileArr SrcFiles = getFilesArraybyPath(src);
 	cout << "Сортируем список файлов источника" << endl;
-	stringstream msg;
 	//проходим по списку файлов
 	long cnt = 0;
 	long all_cnt = arr.size();
 	for (auto a : arr)
 	{
-		msg.clear();
-		//cout << "Поиск файла: " << a.first << endl;
-		if (SrcFiles.count(a.first) > 1)
-		{
-			msg << "****************************************" << endl;
-			msg << "Для файла " << a.first << " найдено несколько совпадений!!!" << endl;
-			TFilesArrRange range = SrcFiles.equal_range(a.first);
-			int tmp = 0;
-			for (TFileArrIterator x = range.first; x != range.second; x++)
-				msg << ++tmp << ": " << x->second << "\\" << x->first << endl;
-			msg << "****************************************" << endl;
-			cout << msg.str();
-			flog << msg.str();
-			continue;
-		}
-		TFileArr::const_iterator itr = SrcFiles.find(a.first);
-		if (itr == SrcFiles.end())
-		{
-			msg << "Файл " << a.second << "\\" << a.first << " не найден!"<< endl;
-			cout << msg.str();
-			flog << msg.str();
-			continue;
-		}
-		else
-		{
-			fs::path fold(a.second + '\\' + a.first);
-			fs::path fnew(itr->second + '\\' + itr->first);
-			uintmax_t old_sz = file_size(fold);
-			uintmax_t new_sz = file_size(fnew);
-			int percent_sz = (old_sz == 0 ? 100 : (old_sz - new_sz) / old_sz);
-			if (std::abs(percent_sz) > 35)
-				msg << "***WARNING***\t";
-			msg << "Файл: " << fold.filename().string() << "(" << old_sz;
-			msg << "/" << new_sz << ") заменен файлом из каталога: " << fnew.filename().string();
-			flog << msg.str();
-		}
+
 		cout << "Обработано " << cnt++ << " файлов из " << all_cnt << endl;
 	}
-	flog.close();
 }

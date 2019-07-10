@@ -158,7 +158,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="J:\Programming\GitHub\Repository\VC4-do-eng\VC4_do_eng.cpp" />
+    <ClCompile Include="F:\VisualStudio\Repos\R47k41\VC4-do-eng\VC4_do_eng.cpp" />
+    <ClCompile Include="USsingClasses.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="UsingClasses.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
